@@ -23,8 +23,8 @@ Before the first lab, please make sure you have R and (the free version of) RStu
 
 ## Lab info
 
-- TBA
-- Room TBA
+- Thursdays, 4pm-6pm
+- Room 217
 
 ---
 
@@ -36,4 +36,4 @@ By appointment: [gl1759@nyu.edu](mailto:gl1759@nyu.edu)
 
 ## Schedule
 
-Coming Soon
+- Lab 1. Introduction: R Markdown, reproducibility, DAGs
