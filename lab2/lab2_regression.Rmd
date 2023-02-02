@@ -1,0 +1,258 @@
+---
+title: "Quant II"
+subtitle: "Lab 2: Regression"
+author: "Giacomo Lemoli"
+date: "February 2, 2023"
+output: 
+  beamer_presentation:
+    theme: "Madrid"
+    color: "crane"
+urlcolor: blue    
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval=TRUE, warning=FALSE, message=FALSE)
+```
+
+
+# Today's plan
+> - Regression: bridging different approaches 
+> - Robust inference, part I
+> - Regressions and inference in practice
+
+
+# Different approaches to linear regression
+> - Linear models are the "default" modeling choice in empirical social science
+> - The choice of a linear regression model can be motivated by different sets of assumptions and statistical perspectives (Aronow and Miller, 2019)
+> - Standard approaches: regression derives from structural assumptions about the DGP
+> - Modern dominating approach: "agnostic" $\implies$ accept DGP can't be known and make inference about it with as few assumptions as possible
+
+
+# Parametric approach
+
+> - Fully specify a statistical model assumed to be true 
+$$
+\begin{aligned}
+Y_i = X_i'\beta + \varepsilon_i \\
+\varepsilon_i \sim N(0, \sigma^2)
+\end{aligned} 
+$$
+
+> - Derive the distribution for $Y_i$
+$$
+Y_i \sim N(X_i'\beta, \sigma^2)
+$$
+
+> - Find the *likelihood function* of the parameters
+$$
+\mathcal{L}((\beta, \sigma)|Y_i, X_i) =  \prod_{i=1}^{N} \frac{1}{\sqrt{2\pi\sigma^2}} e^{\frac{(Y_i - X_i'\beta)^2}{2\sigma^2}}
+$$
+
+> - If $Y_i$ are not i.i.d. (e.g. unequal variances, clustered) the model is mispecified
+
+
+# Parametric approach
+> - Compute the log of the likelihood function, and solve the maximization problem for $(\beta, \sigma)$
+
+> - The value of $\beta$ that maximizes the likelihood function is
+$$
+\hat{\beta} = (\mathbf{X'X})^{-1}\mathbf{X'}Y
+$$
+
+
+# Semi-parametric approach
+> - Weaker restrictions on the distribution of $\varepsilon$: $\mathbb{E}[\mathbf{\varepsilon}|\mathbf{X}]=0$ and $Var[\mathbf{\varepsilon}|\mathbf{X}]=\sigma^2\mathbb{I}$
+
+> - The OLS estimator $$\hat{\beta}=(\mathbf{X'X})^{-1}\mathbf{X'}Y$$ is the \textbf{B}est \textbf{L}inear \textbf{U}nbiased \textbf{E}stimator
+
+# Agnostic approach
+> - Object of interest: Conditional Expectation Function, which summarizes the predictive power of one variable to another 
+$$
+G_Y(x) = \mathbb{E}[Y|X=x]
+$$
+
+> - We can write $Y$ as 
+$$
+\begin{aligned}
+Y \equiv \mathbb{E}[Y|X=x] + \varepsilon \\
+\varepsilon \equiv Y - \mathbb{E}[Y|X=x]
+\end{aligned}
+$$
+
+> - Give a linear representation of the CEF (assumed or just an approximation): $\mathbb{E}[Y|X] =X'\beta$ 
+
+# Agnostic approach
+
+> - Then, find a Best Linear Predictor, i.e. $\hat{\beta}$ which minimizes the Mean Squared Error 
+$$
+\begin{aligned}
+\min_{\beta} \mathbb{E}[\varepsilon_i^2] \\
+= \min_{\beta} \mathbb{E}[(Y_i-\mathbb{E}[Y_i|X_i])^2] \\
+= \min_{\beta} \mathbb{E}[(Y_i-X_i'\beta)^2] \\
+\end{aligned}
+$$
+
+> - The BLP is
+$$
+\beta^{*} = \mathbb{E}[X_i X_i']^{-1} \mathbb{E}[X_iY_i]
+$$
+
+> - The sample analogue to estimate it is
+$$
+\hat{\beta} = (\mathbf{X'X})^{-1}\mathbf{X'}Y
+$$
+
+# Inference under the agnostic approach
+
+> - In lecture we have derived the asymptotic distribution of the OLS estimator. The sample variability is given by the asymptotic variance
+$$
+V=\mathbb{E}[X_i'X_i]^{-1} \mathbb{E}[\varepsilon_i^2X_i'X_i] \mathbb{E}[X_i'X_i]^{-1}
+$$
+
+> - The estimator for the asymptotic variance has the general form
+$$\hat{V}(\hat{\mathbf{\beta}}) = (\mathbf{X}'\mathbf{X})^{-1}\mathbf{X}'\hat{\Psi}\mathbf{X}(\mathbf{X}'\mathbf{X})^{-1}$$
+where $\hat{\Psi}$ is an estimator of $plim [\mathbf{\varepsilon}\mathbf{\varepsilon}']$. Different estimators differ by the elements $\hat{\psi_i}$ in the diagonal matrix $\hat{\Psi}$.
+
+> - These estimators are "robust" because they don't require specific distributional assumptions
+
+# Robust variance estimators in regression
+From MHE, Ch.8.
+
+> - Non-robust/conventional: $\hat{\psi}_i = \hat{\psi} = \frac{\sum_{i=1}^ne_i^2}{n-k} = \hat{\sigma}$
+> - HC0: $\hat{\psi}_i = \hat{e_i}^2$
+> - HC1: $\hat{\psi}_i = \frac{n}{n-k}\hat{e_i}^2$
+> - HC2: $\hat{\psi} = \frac{1}{1-h_{ii}}\hat{e_i}^2$, where $h_{ii}$ is the *leverage* of unit $i$ (the influence of $i$ on the regression line)
+> - HC3: $\hat{\psi} = \frac{1}{(1-h_{ii})^2}\hat{e_i}^2$
+
+# Robust variance estimators
+> - Different approaches: in the parametric approach, robust variance estimators are introduced to correct a "bug". Under an "agnostic" approach, it is a "natural" estimator to use given the lack of structural assumptions
+> - Next week(s): move from inference about descriptive quantities to inference about causal quantities
+> - Direct correspondence between robust variance estimators for regression coefficients and variance estimators for estimators of causal effects in randomized experiments
+
+# Suggested readings
+- Aronow and Miller (2019), Foundations of Agnostic Statistics, CUP
+  - Equivalence between BLP and OLS estimator under linearity
+  - Comparison with parametric regression approaches
+
+
+# Linear regression in R
+> - In base R, `lm()` implements the OLS estimation
+> - Now several different packages are available 
+> - `estimatr::lm_robust()`. Developed for analysis and design of randomized experiments. 
+>   - Options for robust and cluster SE
+>   - Not suitable for panel data models with many FE
+> - `lfe::felm()` and `fixest::feols()` are developed for datasets with many FE
+>   - Options for robust and cluster SE, options for IV estimation
+
+  
+# Linear regression in Stata
+> - Proverbial `reg[ress]`
+> - In observational studies other packages are used more often, for their handling of FE
+> - `xtreg`, `areg`, `reghdfe`. The latter is probably superior
+
+# Robust standard errors 
+> - R: With packages `estimatr`, `lfe`, or `fixest`, specify the SE estimator from inside the function
+> - With `lm()`, fit the model and then use functions in the package `sandwich` (or customized functions) to compute the standard errors
+>   - Looks annoying if you come from Stata, but allows flexibility
+> - **Always** check the function documentation to see what SEs are computed
+> - Stata: `regress y x, vce()`, the argument of `vce()` can be `robust`, `hc2`, `hc3`, `bootstrap`, `cluster clustervar` 
+> - If you replicate analyses in another language, cross-check the documentation, as different adjustments may be applied 
+> - Not all packages have all estimators built-in, so you may integrate the SE computation when exporting the results
+
+# Robust standard errors in R
+\tiny
+```{r}
+## Simulate a randomized experiment
+set.seed(123)
+library(dplyr) 
+
+# Simulated population
+pop <- data.frame(Y1 = rnorm(1000, 4, 2), Y0 = rnorm(1000, 0.5, 3))
+
+# Random sample
+sample <- pop[sample(nrow(pop), 100),]
+sample$D <- 0
+sample$D[sample(100, 30)] <- 1
+
+# Observed potential outcomes
+sample <- sample %>% mutate(Y = D*Y1 + (1-D)*Y0)
+
+```
+
+# Robust standard errors in R
+\tiny
+``` {r}
+### Example 1: lm_robust 
+library(estimatr)
+
+# Default: HC2 estimator
+lm_robust(Y ~ D, data = sample)
+
+# HC1 (Stata's default)
+lm_robust(Y ~ D, data = sample, se_type = "stata")
+
+### Example 2: lm + lmtest + sandwich 
+library(sandwich); library(lmtest)
+fit <- lm(Y ~ D, data = sample)
+coeftest(fit, vcov = vcovHC(fit, type = "HC2"))
+```
+
+# Robust standard errors in R
+\tiny
+```{r}
+# Default is homoskedastic
+summary(fit)
+
+N <- nrow(sample)
+D <- cbind(rep(1, N), sample$D)
+K <- dim(D)[2]
+           
+vcov <- solve((t(D) %*% D)) %*% t(D) %*% diag((sum(residuals(fit)^2)/(N-K)), N, N) %*% D %*% solve((t(D) %*% D))
+
+cbind(coef(fit), sqrt(diag(vcov)))
+
+```
+
+
+
+# Export regression output in tables:
+In R, `stargazer` is perhaps still the most popular 
+
+\tiny
+```{r}
+library(stargazer)
+stargazer(fit, type = "text")
+```
+
+# Export regression output in tables:
+`modelsummary` is very flexible
+
+\tiny
+```{r}
+library(modelsummary)
+modelsummary(list(fit, fit), 
+             vcov=list("stata", "HC2"), 
+             output = "markdown", gof_omit = "^(?!R2|Num)")
+```
+
+# Export regression output in tables:
+`fixest` has its own output-formatting function `etable`
+
+\tiny
+```{r}
+library(fixest)
+fix <- list(feols(Y ~ D, sample, vcov="iid"),
+            feols(Y ~ D, sample, vcov="HC1"))
+fix %>% etable()
+```
+
+
+# Export regression output in tables:
+In Stata: 
+
+> - `outreg2` is the most intuitive
+> - `estout` is more flexible for exporting saved estimates
+
+
+
+
