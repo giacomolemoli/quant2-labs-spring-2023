@@ -42,3 +42,4 @@ By appointment: [gl1759@nyu.edu](mailto:gl1759@nyu.edu)
 - Lab 4. Inference for causal quantities
 - Lab 5. Conditioning strategies
 - Lab 6. Instrumental Variables
+- Lab 7. DiD
