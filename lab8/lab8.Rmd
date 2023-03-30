@@ -79,10 +79,12 @@ dat <- dat %>% group_by(desc_comune) %>%
 \tiny
 ```{r}
 # Indicator for time to treatment
-dat <- dat %>% mutate(time_to_treatment = (year-group)*mafiaben)
+dat <- dat %>% mutate(time_to_treatment = 
+                        case_when(mafiaben==1 ~ (year-group),
+                                  mafiaben==0 ~ -99))
 
 # TWFE
-fit_tw <- feols(MeanEduPol ~ i(time_to_treatment, ref=c(-1,0)) | ID_municip + year, dat)
+fit_tw <- feols(MeanEduPol ~ i(time_to_treatment, ref=c(-1,-99)) | ID_municip + year, dat)
 
 # Sun & Abraham
 fit_sa <- feols(MeanEduPol ~ sunab(group, year) | ID_municip + year, dat) 
