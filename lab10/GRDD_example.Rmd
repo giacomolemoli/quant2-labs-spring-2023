@@ -1,0 +1,329 @@
+---
+title: "Geographic RDD: a simple example"
+author: "Giacomo Lemoli"
+date: "13/4/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval=TRUE, warning=FALSE, message=FALSE)
+```
+
+# Working example
+
+Albertus and Popescu (QJPS 2020) study the effects of land reform on economic and social development. They use Peru's land reform of 1970. For identification, they use the fact that in some areas the reform was more intense. 
+
+
+![](alb_pop.png)
+
+
+We work with their data (available [here](https://www.nowpublishers.com/article/Details/QJPS-19033) ).
+
+Our goal with this example: 
+
+- Apply RDD tools to geographic settings
+
+- Have a look at how to use basic geographic data
+
+First, set the directory and import the packages to be used.
+
+`R` has several packages to work with geo-data. We will use with the package `sf`. The great advantage of `sf` is that its objects are also of class data.frame, which allows to integrate geographic computations and standard data manipulation with base R or `tidyverse`. 
+
+Another popular package to check is `sp`.
+
+```{r}
+## Set directory
+dirs <- c("C:/Users/gl1759/Dropbox/NYU/TA Work/Quant 2 Spring 2022/Replication packages/Albertus & Popescu QJPS 2020",
+               "C:/Users/giaco/Dropbox/NYU/TA Work/Quant 2 Spring 2022/Replication packages/Albertus & Popescu QJPS 2020")
+setwd(Find(dir.exists, dirs))
+
+## Packages
+library(sf)
+library(tidyverse)
+library(fixest)
+library(ggpubr)
+library(rdrobust)
+
+```
+
+
+# Load geographic data
+
+Their dataset contains shapefiles with several layers (polygons and lines). We use only a selection of them.
+
+```{r}
+## Import the shapefiles
+shp_data <- paste0(getwd(), "/replication_package/Data/map_data.gdb")
+
+## Let's have a look at the layers
+(st_layers(dsn=shp_data))
+
+## Districts
+ds <- st_read(dsn=shp_data, layer="districts_1975")
+
+## Broad reform area
+az3 <- st_read(dsn=shp_data, layer="agrozone3")
+
+## Core area boundary
+border <- st_read(dsn=shp_data, layer="core_periph_brd")
+```
+
+The first step after we load geographic data is to check that the Coordinate Reference System is the same across datasets (otherwise projections are different and the overlap of different units will be incorrect)
+
+
+```{r}
+
+## Check CRS is the same
+lapply(list(ds, az3), function(x) st_crs(x)==st_crs(border))
+
+```
+
+# Basic visualization
+
+The simple and flexible `sf` environment allows to draw maps of our data in a straightforward way.
+
+We start by drawing a map of our population: Peruvian districts. We overlay to this map our sample of interest (Agrarian reform zone 3) and the treatment assignment (the border of the core reform area).
+
+```{r}
+## Plot of the analysis sample + treatment assignment
+map <- ggplot() +
+  geom_sf(data=ds, color="grey", fill=NA) +
+  geom_sf(data=az3, color="black", fill=NA) +
+  geom_sf(data=border, color="red") +
+  theme_bw()
+map
+
+## Zoom in
+map <- map + coord_sf(xlim=c(-80, -75), ylim=c(-5,-11))
+map
+
+```
+
+
+Now that we have a map of our sample we can use it to show the distribution of our variables. We should do this as a first thing in every project, but even more so in spatial projects.
+
+In order to plot the variables, we merge our analysis data to the shapefile. 
+
+
+```{r}
+
+## Import the data
+dat <- read.csv("replication_package/Data/data_final.csv")
+
+## Select data in the area of interest
+dat <- subset(dat, agrozone==3)
+
+## Merge dataset with shapefile
+dat <- right_join(ds, dat, by="codeconc")
+
+class(dat)
+
+```
+
+Now our analysis dataset is geo-referenced: we can use statistical and geographic functions on the same object.
+
+It is a good idea to plot the running variable (RV) and the outcome. This shows us the variation we are using for estimation. 
+
+The authors use several outcome: here we focus on Poverty Head Count ratio (measured in 2009).
+
+The RV is the distance of the district's centroid from the border line.
+
+```{r}
+
+# RV map
+map_rv <- ggplot() +
+  geom_sf(data=ds, color="grey", fill=NA) +
+  geom_sf(data=az3, color="black", fill=NA) +
+  geom_sf(data=dat, color="grey", aes(fill=core13_dist)) +
+  geom_sf(data=border, color="red") +
+  coord_sf(xlim=c(-80, -75), ylim=c(-5,-11)) +
+  scale_fill_gradient(name="Distance to border", low="blue", high="white") + 
+  theme_bw() + theme(legend.position="bottom")
+
+# Outcome map
+map_out <- ggplot() +
+  geom_sf(data=ds, color="grey", fill=NA) +
+  geom_sf(data=az3, color="black", fill=NA) +
+  geom_sf(data=dat, color="grey", aes(fill=fgt0)) +
+  geom_sf(data=border, color="red") +
+  coord_sf(xlim=c(-80, -75), ylim=c(-5,-11)) +
+  scale_fill_gradient(name="Poverty H.C. ratio (2009)", low="white", high="red") + 
+  theme_bw() + theme(legend.position="bottom")
+
+ggarrange(map_rv, map_out, align="h", nrow=1)
+```
+
+
+# RDD analysis
+
+We can now move to the estimation part. Before, we do some further data preparation.
+
+```{r}
+
+## Rescale RV (negative for control group)
+dat <- dat %>% mutate(dist=treat*core13_dist + (1-treat)*(-1*core13_dist))
+
+## Create the border FE
+dat <- dat %>% mutate(bfe1=case_when(core13_id==1 ~ 1, TRUE ~ 0),
+                      bfe2=case_when(core13_id==2 ~ 1, TRUE ~ 0),
+                      bfe3=case_when(core13_id==3 ~ 1, TRUE ~ 0))
+
+```
+
+
+We begin with a binning plot of our outcome against the RV and the cutoff, to check for visual evidence of discontinuities. We use the "mimicking variance" method and a linear global approximation for simplicity.
+
+
+```{r}
+
+##### RD plot #####
+rdplot(y=dat$fgt0, x=dat$dist, binselect="qsmv", x.label="Distance", y.label="Poverty HC ratio (2009)", p=1)
+
+```
+
+
+As a first estimation approach, we use the one employed by the authors. They estimate simple OLS regressions with manually-selected bandwidth, and repeat the estimation for a grid of BW values. Here for the example, we pick just one BW. 
+
+We run different specifications, with and without covariates, and use Conley standard errors to account for spatial correlation. Conley SE are also implemented in the `fixest` package.
+
+
+```{r}
+
+####### Estimation 1: LM with hand-selected BW #####
+bw_manual <- 50
+
+# Simple difference in means
+rd1 <- feols(fgt0 ~ treat, vcov="hetero", data=subset(dat, abs(dist)<bw_manual))
+
+# "Traditional" interacted version
+rd2 <- feols(fgt0 ~ treat*dist, vcov="hetero", data=subset(dat, abs(dist)<bw_manual))
+
+# Interacted version + controls
+rd3 <- feols(fgt0 ~ treat*dist + elev + slope + icult_land_maj +
+               total_road_1973 + pop1972_sup_ha, 
+             vcov="hetero", data=subset(dat, abs(dist)<bw_manual))
+
+# Conley SE to account for spatial correlation
+rd4 <- feols(fgt0 ~ treat*dist, vcov=vcov_conley(lat="y_coord", lon="x_coord", cutoff=50), 
+             data=subset(dat, abs(dist)<bw_manual))
+
+
+etable(list(rd1, rd2, rd3, rd4), keep = c("treat"))
+
+```
+
+The second approach is to use `rdrobust`. In this way we select an MSE-optimal bandwidth and use kernel weighting for our local linear regressions. 
+
+Unfortunately, `rdrobust` does not allow for spatially correlated SE.  
+
+```{r}
+
+##### Estimation 2: RDrobust with optimal BW #####
+rdr1 <- rdrobust(y=dat$fgt0, x=dat$dist, p=1, kernel="triangular", bwselect="mserd", all=T)
+
+summary(rdr1)
+
+```
+
+
+Finally, let's address the issue of geographic heterogeneity. Keele and Titiunik (2015) discuss how simple GRDD with perpendicular distances to the boundary may result in comparing units that are actually **far** from each other. This can become a problem of unobserved heterogeneity. 
+
+We use two approaches. One, employed by the authors, is to use border segment FE to compare only units close to each other. The other, proposed by Keele and Titiunik (2015) is to estimate the LATE geographic frontier by using a grid of points over the boundary.
+
+In order to use segment FE we just enter them as covariates.
+
+```{r}
+##### Spatial het. 1: segment FE #####
+rdr2 <- rdrobust(y=dat$fgt0, x=dat$dist, covs=cbind(dat$bfe1, dat$bfe2, dat$bfe3), p=1, kernel="triangular", bwselect="mserd", all=T)
+
+summary(rdr2)
+
+```
+
+
+As to the second approach, for simplicity we just use three randomly selected points along the frontier. 
+
+```{r}
+##### Spatial het. 2: point distance #####
+
+## Sample the points
+set.seed(1)
+points <- st_sample(border, size=3) 
+
+## Where are they?
+ggplot() +
+  geom_sf(data=ds, color="grey", fill=NA) +
+  geom_sf(data=az3, color="black", fill=NA) +
+  geom_sf(data=border, color="red") +
+  geom_sf(data=points, color="blue", size=2, shape=19) +
+  coord_sf(xlim=c(-80, -75), ylim=c(-5,-11)) +
+  theme_bw()
+
+
+```
+
+
+
+
+For each district, we compute new RVs which are the distance from each of these points. To do so, we extract the centroids of the polygons and work with them separately.
+
+```{r}
+centroids <- dat %>% 
+  # convert the data from the existing geometry (polygon) to numbers
+  st_drop_geometry %>% 
+  select(c(codeconc, x_coord, y_coord))
+
+# Convert the centroids into another geometry: points
+centroids <- st_as_sf(centroids, coords=c("x_coord", "y_coord"),
+                      crs="+proj=longlat")
+
+# Give the same CRS of the other objects
+centroids <- st_transform(centroids, crs=st_crs(ds))
+
+## Success?
+st_crs(centroids)==st_crs(ds)
+
+# For each centroid, compute the minimum distance to each of the points
+# First turn object into set of single points
+points <- points %>% 
+  st_cast(to="POINT") %>%
+  st_as_sf()
+
+# Compute distances and convert to km
+centroids <- centroids %>%
+  mutate(distp1=st_distance(geometry, points[1,])/1000,
+         distp2=st_distance(geometry, points[2,])/1000,
+         distp3=st_distance(geometry, points[3,])/1000)
+
+
+# Merge back the distances with data
+dists <- centroids %>% st_drop_geometry() %>% select(c(codeconc, starts_with("distp")))
+
+dat <- left_join(dat, dists, by="codeconc")
+
+# Re-scale all the new RVs
+rescale <- function(x){
+  x <- dat$treat*x + (1-dat$treat)*{-1*x}
+  x
+}
+dat <- dat %>% mutate(across(starts_with("distp"), rescale))
+
+```
+
+
+Finally, we do the RDD on each point separately.
+
+```{r}
+rdp1 <- rdrobust(y=dat$fgt0, x=dat$distp1, p=1, kernel="triangular", bwselect="mserd", all=T)
+
+rdp2 <- rdrobust(y=dat$fgt0, x=dat$distp2, p=1, kernel="triangular", bwselect="mserd", all=T)
+
+rdp3 <- rdrobust(y=dat$fgt0, x=dat$distp3, p=1, kernel="triangular", bwselect="mserd", all=T)
+
+# Results
+out <- do.call("rbind", lapply(list(rdp1, rdp2, rdp3), function(x) cbind(x$coef["Robust",], x$se["Robust",]))) %>% as.data.frame()
+colnames(out) <- c("Coeff", "SE")
+
+out
+
+```

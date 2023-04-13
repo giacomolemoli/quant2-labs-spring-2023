@@ -45,3 +45,4 @@ By appointment: [gl1759@nyu.edu](mailto:gl1759@nyu.edu)
 - Lab 7. DiD
 - Lab 8. Synthetic control
 - Lab 9. RDD I
+- Lab 10. RDD II
