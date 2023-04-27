@@ -47,3 +47,4 @@ By appointment: [gl1759@nyu.edu](mailto:gl1759@nyu.edu)
 - Lab 9. RDD I
 - Lab 10. RDD II
 - Lab 11. Distributional analysis
+- Lab 12. Mediation and moderation
