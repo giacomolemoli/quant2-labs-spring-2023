@@ -48,3 +48,4 @@ By appointment: [gl1759@nyu.edu](mailto:gl1759@nyu.edu)
 - Lab 10. RDD II
 - Lab 11. Distributional analysis
 - Lab 12. Mediation and moderation
+- Lab 13. Multiple endpoints, missing data, power analysis
